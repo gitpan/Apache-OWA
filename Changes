@@ -1,4 +1,14 @@
 Revision history for Perl extension Apache::OWA.
+0.7
+- Improved error handling
+- Support for multi-value variables and PL/SQL Tables.
+- Changed format of DAD-string, since Apache::DBI seemed
+  to get a bit confused with the old one.
+- DEBUG option added.
+- Updated documentation a little.
+
+0.6
+- Dynamic passing of cgi enironment variables to Oracle.
 
 0.5 (1999-09-27)
 - Support for owa_util.point and ICX_OWA_PARMS.ARRAY added by

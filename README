@@ -9,17 +9,16 @@ Available from http://www.ita.chalmers.se/~svinto/
 REQUIREMENTS: 
 ============
 
-Apache 1.3.6
-mod_perl 1.20
+Apache
+mod_perl
 DBI 
 DBD::Oracle
-Apache::Request
+Apache::Request (it's called libapreq on CPAN)
 Oracle PL/SQL Web Toolkit, any version should work. Tested with 1.1, 3.0 and 
 4,0. Check owa.initialize to find the version-number.
-Apache::DBI is optional, but highly recommended. Take a look at the benchmark
-below, and you'll see why.
+Apache::DBI is optional, but highly recommended.
 
-This module has only been tested (by me) on Solaris 2.6, Oracle 8.0.5.1.
+This module has only been tested (by me) on Solaris 2.6, Oracle 8.0.5, 8.1.5, 8.1.6.
 
 INSTALLATION
 ============
@@ -31,14 +30,12 @@ Next you need to edit your httpd.conf. Here is a sample configuration where
 the database user and password is provided. Use this for applications that use
 their own authentication-mechanisms, or that don't need any authenticaton. 
 
-<Location /dir/> can be anything you want, but it will be used as the schema
-when executing your pl/sql. If you don't like this you can use 
-"PerlSetVar SCHEMA blabla" to override this. Example:
+<Location /dir/> can be anything you want. Example:
 
 <Location /scott/ >
 	SetHandler perl-script
 	PerlHandler Apache::OWA
-	PerlSetVar DAD scott/tiger@oracle1
+	PerlSetVar DAD oracle1:scott:tiger
 </Location>
 
 This means that calling "http://server/scott/print_cgi_env" executes the 
@@ -47,7 +44,7 @@ pl/sql procedure "scott.print_cgi_env". If you write:
 <Location /scott/ >
 	SetHandler perl-script
 	PerlHandler Apache::OWA
-	PerlSetVar DAD scott/tiger@oracle1
+	PerlSetVar DAD oracle1:scott:tiger
 	PerlSetVar SCHEMA oas_public
 </Location>
 
@@ -70,7 +67,7 @@ session" priveliges.
 	PerlSetVar DB_AUTH true
 </Location>
 
-The final metod is authentication using a custom database function that takes
+The final method is authentication using a custom database function that takes
 the username and password as arguments and then returns zero for success and 
 non-zero for failure. The format of the DB_PROC_AUTH variable is: 
 <schema>.<function>. Remember that the user in the DAD-string needs permission
@@ -82,9 +79,12 @@ to execute this function.
         PerlAuthenHandler Apache::OWA
         Require valid-user
 
-        PerlSetVar DAD user/password@oracle
+        PerlSetVar DAD oracle:user:password
 	PerlSetVar DB_PROC_AUTH user.authen
 </Location>
+
+To get verbose errors sent to the brovser, use "PerlSetVar DEBUG 1" in your
+<Location ...>. To debug Apache::OWA itself set DEBUS to 2.
 
 BUGS
 ====
@@ -98,8 +98,7 @@ or mod_perl's fault.
 TODO
 ====
 Contributions are welcome!
-- owa.auth_scheme checking not implemented.
-- owa.protection_realm checking not implemented.
+- owa.auth_scheme and owa.protection_realm checking not implemented.
 - No transaction support. I've never used it and don't know how it works.
 Maybe Apache::SESSION could be used for this?
 - Maybe my authentication-stuff could be merged wuth Apache::AuthDBI ?
@@ -117,126 +116,3 @@ Many thanks to Marcelo F. Ochoa and Martin Kuzela for writing OWSKiller
 write this. If you need support for any of the things not implemented in this 
 module, have a look at OWSKiller. It is much more complete.
 
-BENCHMARK
-=========
-
-The fun part :)
-
-Oracle Application Server 4.0.7.1:
-----------------------------------
-> ./ab -n 100 http://rand.ita.chalmers.se:8080/prick/plsql/print_cgi_env
-This is ApacheBench, Version 1.3
-Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
-Copyright (c) 1998-1999 The Apache Group, http://www.apache.org/
-
-Server Software:        Oracle_Web_Listener/4.0.7.1.0EnterpriseEdition     
-Server Hostname:        rand.ita.chalmers.se
-Server Port:            8080
-
-Document Path:          /prick/plsql/print_cgi_env
-Document Length:        421 bytes
-
-Concurrency Level:      1
-Time taken for tests:   21.746 seconds
-Complete requests:      100
-Failed requests:        0
-Total transferred:      59700 bytes
-HTML transferred:       42100 bytes
-Requests per second:    4.60
-Transfer rate:          2.75 kb/s received
-
-Connnection Times (ms)
-              min   avg   max
-Connect:        0     0     0
-Processing:   207   216   240
-Total:        207   216   240
-
-
-Oracle Application Server 4.0.7.1 with Apache 1.2.6:
-----------------------------------------------------
-> ./ab -n 100 http://rand.ita.chalmers.se:8000/prick/plsql/print_cgi_env
-This is ApacheBench, Version 1.3
-Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
-Copyright (c) 1998-1999 The Apache Group, http://www.apache.org/
-
-Server Software:        Oracle_Application_Server/4.0                      
-Server Hostname:        rand.ita.chalmers.se
-Server Port:            8000
-
-Document Path:          /prick/plsql/print_cgi_env
-Document Length:        395 bytes
-
-Concurrency Level:      1
-Time taken for tests:   12.825 seconds
-Complete requests:      100
-Failed requests:        0
-Total transferred:      56800 bytes
-HTML transferred:       39500 bytes
-Requests per second:    7.80
-Transfer rate:          4.43 kb/s received
-
-Connnection Times (ms)
-              min   avg   max
-Connect:        0     0     0
-Processing:   107   127   265
-Total:        107   127   265
-
-
-
-Apache 1.3.6 and Apache::OWA _with_ Apache::DBI :
--------------------------------------------------
-> ./ab -n 100 http://rand.ita.chalmers.se/prick/print_cgi_env
-This is ApacheBench, Version 1.3
-Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
-Copyright (c) 1998-1999 The Apache Group, http://www.apache.org/
-
-Server Software:        Apache/1.3.6                                       
-Server Hostname:        rand.ita.chalmers.se
-Server Port:            80
-
-Document Path:          /prick/print_cgi_env
-Document Length:        530 bytes
-
-Concurrency Level:      1
-Time taken for tests:   7.519 seconds
-Complete requests:      100
-Failed requests:        0
-Total transferred:      72400 bytes
-HTML transferred:       53000 bytes
-Requests per second:    13.30
-Transfer rate:          9.63 kb/s received
-
-Connnection Times (ms)
-              min   avg   max
-Connect:        0     0     0
-Processing:    65    74   330
-Total:         65    74   330
-
-Apache 1.3.6 and Apache::OWA _without_ Apache::DBI :
-----------------------------------------------------
-> ./ab -n 100 http://rand.ita.chalmers.se/prick/print_cgi_env
-This is ApacheBench, Version 1.3
-Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
-Copyright (c) 1998-1999 The Apache Group, http://www.apache.org/
-
-Server Software:        Apache/1.3.6                                       
-Server Hostname:        rand.ita.chalmers.se
-Server Port:            80
-
-Document Path:          /prick/print_cgi_env
-Document Length:        530 bytes
-
-Concurrency Level:      1
-Time taken for tests:   23.284 seconds
-Complete requests:      100
-Failed requests:        0
-Total transferred:      72400 bytes
-HTML transferred:       53000 bytes
-Requests per second:    4.29
-Transfer rate:          3.11 kb/s received
-
-Connnection Times (ms)
-              min   avg   max
-Connect:        0     0     0
-Processing:   208   232   351
-Total:        208   232   351

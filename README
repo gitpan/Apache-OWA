@@ -19,7 +19,7 @@ Oracle PL/SQL Web Toolkit, any version should work. Tested with 1.1, 3.0 and
 Apache::DBI is optional, but highly recommended. Take a look at the benchmark
 below, and you'll see why.
 
-This module has only been tested on Solaris 2.6, Oracle 8.0.5.1.
+This module has only been tested (by me) on Solaris 2.6, Oracle 8.0.5.1.
 
 INSTALLATION
 ============
@@ -100,14 +100,17 @@ TODO
 Contributions are welcome!
 - owa.auth_scheme checking not implemented.
 - owa.protection_realm checking not implemented.
-- owa_util.ident_array and owa_image.point apparently need some other form 
-of input data. Not implemented.
 - No transaction support. I've never used it and don't know how it works.
 Maybe Apache::SESSION could be used for this?
 - Maybe my authentication-stuff could be merged wuth Apache::AuthDBI ?
 
 CREDITS
 =======
+Support for owa_util.point and ICX_OWA_PARMS.ARRAY added by
+Gunnar Hellekson, <g.hellekson@trilux.com> and 
+Erich Morisse <e.morisse@trilux.com>
+of Trilux Internet Group, Ltd.
+Good work!
 
 Many thanks to Marcelo F. Ochoa and Martin Kuzela for writing OWSKiller 
 (http://www.adela.sk/kuzela/OWSKiller/), which gave me the inspiration to 

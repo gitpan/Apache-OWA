@@ -2,12 +2,14 @@ package Apache::OWA;
 
 use strict;
 use vars qw($VERSION %owa_mapping %owa_version);
-$Apache::OWA::VERSION = '0.4';
+$Apache::OWA::VERSION = '0.5';
 
 use DBI;
 use Apache::Constants qw(:common);
 use Apache::Request ();
+
 my ($dbinfo, $sth, $sql, $r, $dbh);
+local $| = 1;
 
 # this handler may be called as PerlAuthHandler or PerlHandler
 # is this a good idea? i don't know... seems convenient to me.
@@ -16,9 +18,7 @@ sub handler {
   $r = shift;
   $r = Apache::Request->new($r,DISABLE_UPLOADS => 1);
   # if auth required, do auth_handler, else content_handler
-  ( $r->auth_type() eq "Basic") ?
-    &auth_handler :
-      &content_handler;
+  ( $r->auth_type() eq "Basic") ?    &auth_handler :      &content_handler;
 }
 
 ####################################################################
@@ -86,7 +86,7 @@ sub content_handler {
 
   $dbh = DBI->connect("dbi:Oracle:", $dbinfo)    || &error1($DBI::errstr);
 
-  # map uri to plsql precedure name
+  # map uri to plsql precedure name. could probably be done better...
   my @plsql = reverse( split (/\//, $r->uri() ));
   my $plsql = shift(@plsql);
 
@@ -111,10 +111,7 @@ sub content_handler {
   DECLARE var_val  owa.vc_arr;
           var_name owa.vc_arr;
   BEGIN
-    owa.ip_address(1):= ?;
-    owa.ip_address(2):= ?;
-    owa.ip_address(3):= ?;
-    owa.ip_address(4):= ?;
+    owa.ip_address(1):= ?;    owa.ip_address(2):= ?;    owa.ip_address(3):= ?;    owa.ip_address(4):= ?;
 --    owa.user_id:= NULL;
 --    owa.password:= NULL;
     owa.hostname:=?;
@@ -192,23 +189,75 @@ sub content_handler {
   # check for arguments
   my @names =  $r->param();
   if ( scalar @names ) {
-    my ($declares, $defines, $args);
+    my (@declares, @defines, @args);
+    my ($basename, $coord);
 
-    # put arguments in place
-    foreach my $name ( @names ) {
-      $declares .= "$name varchar2(4096);\n";
-      $defines .= "$name := '" . $r->param($name) . "';\n";
-      $args .= "," if ($args);
-      $args .= "$name=>$name";
-    }
-    $sql = "DECLARE $declares BEGIN $defines $plsql ($args); END;";
+    # loop through each arg, constructing SQL snippets as we go
+
+    my $i;
+    for ($i=0; $i < @names; $i++) {
+
+      my $name = $names[$i];
+      my (@values) = $r->param($name);
+
+      # is it a point?
+      if (($basename,$coord) = ($name =~ /^(.*)\.([xy])$/i) ) {
+
+        push @declares, "$basename owa_util.point;";
+        push @args, "$basename => $basename";
+
+        # x or y?
+        if ($coord =~ /x/i) {
+          push @defines, $basename . "(1) := '$values[0]';";
+        }
+        else {
+          push @defines, $basename . "(2) := '$values[0]';";
+        }
+        #
+        # this probably is wrong, but we're assuming
+        # the next argument is the other part of the
+        # point...
+        #
+        $i++;
+      }
+
+      # is it an array?
+      elsif ((scalar @values) > 1) {
+        #push @declares, "$name owa_util.ident_arr;";
+        push @declares, "$name ICX_OWA_PARMS.ARRAY;";
+        push @args, "$name => $name";
+        for my $j (1 .. @values) {
+          push @defines, $name . "($j) := '$values[$j-1]';";
+        }
+      }
+
+      # regular attr=value pair
+      else {
+        push @declares, "$name varchar2(4096);";
+        push @args, "$name => $name";
+        push @defines, "$name := '$values[0]';";
+      }
+
+    } # name loop
+
+    $sql =  "DECLARE\n   "
+      . join("\n   ", @declares)
+      . "\n"
+      . "BEGIN\n   "
+      . join("\n   ", @defines)
+      . "\n"
+      . "\n"
+      . "   " . $plsql . "("
+      . join(',', @args)
+      . ");\n"
+      . "END;";
   }
 
-  # no arguments
   else {
+    # no arguments
     $sql = "DECLARE BEGIN $plsql; END;";
   }
-  #print STDERR "$sql\n";
+
   $sth = $dbh->prepare($sql);
   $sth->execute || &error2($DBI::errstr, $sql);
   $sth->finish;
@@ -222,15 +271,19 @@ sub content_handler {
 # version 3 and earlier:
 
   if ($owa_version{$r->uri()} <= 768) {
-    $sql ="begin
+    $sql ="
+declare
+     max_rows number;
+begin
+--     max_rows := ( 32678 / htp.htbuf_len );
+     max_rows := 126;
      :content := NULL;
      :rows := htp.htbuf.count;
      for i in 1 .. htp.htbuf.count  loop
            :content := :content || htp.htbuf(:pos);
            :pos := :pos + 1;
-           if i > 126 then
-               exit;
-           end if;
+
+           if i > max_rows then exit; end if;
            if ( :pos >= htp.htbuf.count )  then
                :pos := 0 ;
                exit;
@@ -248,9 +301,9 @@ END;";
       $rv = $sth->execute      || &error2($DBI::errstr,$sql);
       $numgets++;
 
-      #put Content-type in there if needed, but only first time.
-      $content = "Content-type: text/html\n\n" . $content
+      $r->content_type('text/html')
         unless ( $content =~ /^Location|^Status|^Set-Cookie|^Content\-type/i || $numgets > 1) ;
+
       $r->print($content);
       #print STDERR "$content pos: $pos rows: $rows numgets: $numgets version: $owa_version rv: $rv\n";
     }
@@ -258,10 +311,15 @@ END;";
 
 # version 4:
   elsif ($owa_version{$r->uri()} == 1024){
-    $sql ="begin
+    $sql ="
+declare
+     max_rows number;
+begin
+--     max_rows := ( 32678 / htp.htbuf_len );
+     max_rows := 127;
      :content := NULL;
      :rows := 0;
-     while ( :pos > 0 AND  :rows < 127 ) loop
+     while ( :pos > 0 AND  :rows < max_rows ) loop
        :content := :content || htp.get_line(:pos);
        :rows := :rows + 1;
      end loop;
@@ -276,9 +334,9 @@ END;";
       $rv = $sth->execute      || &error2($DBI::errstr,$sql);
       $numgets++;
 
-      #put Content-type in there if needed, but only first time.
-      $content = "Content-type: text/html\n\n" . $content
+      $r->content_type('text/html')
         unless ( $content =~ /^Location|^Status|^Set-Cookie|^Content\-type/i || $numgets > 1) ;
+
       $r->print($content);
       #print STDERR "$content pos: $pos rows: $rows numgets: $numgets version: $owa_version rv: $rv\n";
     }

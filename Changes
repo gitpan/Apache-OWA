@@ -1,5 +1,11 @@
 Revision history for Perl extension Apache::OWA.
 
+0.5 (1999-09-27)
+- Support for owa_util.point and ICX_OWA_PARMS.ARRAY added by
+  Gunnar Hellekson, <g.hellekson@trilux.com> and 
+  Erich Morisse <e.morisse@trilux.com>
+  of Trilux Internet Group, Ltd.
+
 0.4
 - Invented SCHEMA configuration directive.
 - Cleaned up the code a bit.
